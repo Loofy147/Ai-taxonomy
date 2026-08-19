@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://procedure-intelligence.org/schemas/tool_contract.json",
+  "title": "ProcedureIntelligenceToolContract",
+  "description": "Standardized contract for tools exposed via Model Context Protocol (MCP) in the Procedure Intelligence Framework.",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9_-]+$",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "Unique identifier name for the tool."
+    },
+    "description": {
+      "type": "string",
+      "description": "Clear, detailed explanation of what the procedure accomplishes, its side-effects, and preconditions."
+    },
+    "category": {
+      "type": "string",
+      "enum": ["atomic", "composite", "meta_procedure", "diagnostic"],
+      "default": "atomic",
+      "description": "Taxonomic classification of the procedure."
+    },
+    "is_side_effecting": {
+      "type": "boolean",
+      "default": true,
+      "description": "True if executing the procedure alters environmental or database state."
+    },
+    "requires_hitl_approval": {
+      "type": "boolean",
+      "default": false,
+      "description": "True if execution requires explicit human-in-the-loop approval due to non-reversible side effects."
+    },
+    "hoare_logic_contract": {
+      "type": "object",
+      "properties": {
+        "precondition": {
+          "type": "string",
+          "description": "Mathematical precondition logic formula {P} that must evaluate to true before invocation."
+        },
+        "postcondition": {
+          "type": "string",
+          "description": "Mathematical postcondition logic formula {Q} guaranteed upon successful termination."
+        }
+      },
+      "required": ["precondition", "postcondition"],
+      "additionalProperties": false
+    },
+    "inputSchema": {
+      "type": "object",
+      "description": "Strict JSON Schema governing required arguments and parameter types.",
+      "properties": {
+        "type": { "type": "string", "const": "object" },
+        "properties": { "type": "object" },
+        "required": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "required": ["type", "properties"]
+    },
+    "outputSchema": {
+      "type": "object",
+      "description": "Strict JSON Schema governing return data structures.",
+      "properties": {
+        "type": { "type": "string" },
+        "properties": { "type": "object" },
+        "required": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "required": ["type"]
+    }
+  },
+  "required": ["name", "description", "inputSchema", "outputSchema"],
+  "additionalProperties": true
+}
