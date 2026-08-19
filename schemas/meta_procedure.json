@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://procedure-intelligence.org/schemas/meta_procedure.json",
+  "title": "SynthesizedMetaProcedureDAG",
+  "description": "Schema for meta-procedure outputs synthesized by Planner agents into executable Directed Acyclic Graphs (DAGs).",
+  "type": "object",
+  "properties": {
+    "goal_specification": {
+      "type": "string",
+      "description": "The high-level technical goal or natural language prompt requested by the user."
+    },
+    "verification_proof": {
+      "type": "object",
+      "properties": {
+        "weakest_precondition": {
+          "type": "string",
+          "description": "Derived weakest precondition wp(DAG, Q) for safety validation."
+        },
+        "certified_safe": {
+          "type": "boolean",
+          "description": "Indicates whether formal verification passed prior to step execution."
+        }
+      },
+      "required": ["weakest_precondition", "certified_safe"],
+      "additionalProperties": false
+    },
+    "steps": {
+      "type": "array",
+      "description": "Sequenced execution steps forming the DAG.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "step_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Unique identifier for this step within the DAG."
+          },
+          "procedure_name": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9_-]+$",
+            "description": "Name of the tool/procedure to invoke."
+          },
+          "arguments_mapping": {
+            "type": "object",
+            "description": "Key-value mapping of parameters, allowing references to previous step outputs (e.g. $steps[1].output.field)."
+          },
+          "dependencies": {
+            "type": "array",
+            "items": { "type": "integer" },
+            "description": "Array of step_ids that must complete successfully before this step executes."
+          },
+          "compensating_procedure": {
+            "type": "object",
+            "properties": {
+              "procedure_name": { "type": "string" },
+              "arguments_mapping": { "type": "object" }
+            },
+            "description": "Rollback procedure to execute if downstream execution fails."
+          }
+        },
+        "required": ["step_id", "procedure_name", "arguments_mapping", "dependencies"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["goal_specification", "steps"],
+  "additionalProperties": false
+}
