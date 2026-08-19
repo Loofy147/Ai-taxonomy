@@ -2,7 +2,7 @@
 
 > **Bridging Probabilistic AI Reasoning with Deterministic Code Execution**
 
-The **Procedure Intelligence Framework (PIF)** is an open-source, mathematically grounded engineering architecture designed to classify, formalize, verify, and orchestrate software procedures within autonomous AI agent ecosystems. As AI transitions from linear chat models to multi-step agentic execution, PIF provides the technical backbone required to ensure tool interactions are token-efficient, provably safe, schema-rigorous, and fully auditable.
+The **Procedure Intelligence Framework (PIF)** is an open-source, mathematically grounded engineering architecture designed to classify, formalize, verify, and orchestrate software procedures within autonomous AI agent ecosystems. As AI transitions from linear chat models to multi-step agentic execution, PIF provides the technical backbone required to ensure tool interactions are token-efficient, provably safe, schema-rigorous, structured in reviews, and fully auditable.
 
 ---
 
@@ -13,13 +13,14 @@ The **Procedure Intelligence Framework (PIF)** is an open-source, mathematically
 3. [For What? (Primary Objectives & Use Cases)](#-for-what-primary-objectives--use-cases)
 4. [Multidimensional Taxonomy & Ontological Foundations](#-multidimensional-taxonomy--ontological-foundations)
 5. [Formal Verification & Mathematical Safety Engine](#-formal-verification--mathematical-safety-engine)
-6. [Architectural Calling Patterns & Context Optimization](#-architectural-calling-patterns--context-optimization)
-7. [Protocol Standardization (MCP Integration)](#-protocol-standardization-mcp-integration)
-8. [Quantifiable Health Metrics ($PIVS$)](#-quantifiable-health-metrics-pivs)
-9. [Engineering Considerations & Production Guidelines](#-engineering-considerations--production-guidelines)
-10. [Open-Source Strategy & Open Core Model](#-open-source-strategy--open-core-model)
-11. [Repository Structure](#-repository-structure)
-12. [License & Community](#-license--community)
+6. [Structured Reviews, Criticism & Assessment Engine](#-structured-reviews-criticism--assessment-engine)
+7. [Architectural Calling Patterns & Context Optimization](#-architectural-calling-patterns--context-optimization)
+8. [Protocol Standardization (MCP Integration)](#-protocol-standardization-mcp-integration)
+9. [Quantifiable Health Metrics ($PIVS$)](#-quantifiable-health-metrics-pivs)
+10. [Engineering Considerations & Production Guidelines](#-engineering-considerations--production-guidelines)
+11. [Open-Source Strategy & Open Core Model](#-open-source-strategy--open-core-model)
+12. [Repository Structure](#-repository-structure)
+13. [License & Community](#-license--community)
 
 ---
 
@@ -31,7 +32,7 @@ Modern autonomous AI agents interact with complex real-world environments—exec
 2. **Hallucination & Parameter Mismatch:** Without strict schema contracts (`strict: true`) and verification on outputs (`outputSchema`), models frequently generate invalid arguments or hallucinate non-existent API options.
 3. **Unverified Side Effects & Security Risks:** Executing side-effecting procedures without mathematical pre-conditions or human-in-the-loop controls poses severe operational and cybersecurity hazards.
 
-**Procedure Intelligence Framework (PIF)** solves these challenges by treating software procedures not merely as string function signatures, but as **first-class ontological entities** subject to formal mathematical verification (Hoare Logic), structured taxonomy, dynamic routing, and transactional rollback boundaries.
+**Procedure Intelligence Framework (PIF)** solves these challenges by treating software procedures not merely as string function signatures, but as **first-class ontological entities** subject to formal mathematical verification (Hoare Logic), structured taxonomy, dynamic routing, step-level criticism reviews, and transactional rollback boundaries.
 
 ---
 
@@ -50,6 +51,7 @@ Modern autonomous AI agents interact with complex real-world environments—exec
 * **Bridging AI Logic with Real-World Actions:** Allowing LLMs to reliably execute side-effecting code (e.g., modifying database records, updating cloud firewall rules) without parameter hallucinations.
 * **Dynamic Meta-Procedural Synthesis:** Composing simple, atomic procedures (e.g., file compression $\rightarrow$ remote SFTP transfer $\rightarrow$ email notification) into verified execution Directed Acyclic Graphs (DAGs).
 * **Formal System Verification:** Certifying that automated AI actions satisfy strict safety and correctness criteria before execution using mathematical logic (Hoare logic triples $\{P\} C \{Q\}$).
+* **Structured Reviews & Criticisms:** Assessing step execution pre- and post-invocation with explicit severity levels (`LOW`, `MEDIUM`, `HIGH`, `CRITICAL`), generating recommendations and holistic DAG execution reports.
 * **Standardized Tool Integration:** Establishing unified interfaces across heterogeneous systems so AI models can discover, inspect, and invoke local (`stdio`) or remote (`HTTP/SSE`) tools seamlessly.
 
 ---
@@ -95,6 +97,30 @@ $$wp(C_1; C_2, Q) = wp(C_1, wp(C_2, Q))$$
 ### 3. Loop Invariants & Termination Proofs
 Iterative procedures require a defined loop invariant $P$ and a well-founded ranking function (variant) $V \in W$ to guarantee termination and avoid infinite ReAct execution loops:
 $$\{P \land B \land V = z\} \, C \, \{P \land V < z\}$$
+
+---
+
+## 🕵️ Structured Reviews, Criticism & Assessment Engine
+
+Beyond static schema validation and pre-execution verification, PIF incorporates a dynamic **Review Engine (`ReviewEngine`)** to perform structured pre-execution and post-execution evaluations during DAG execution.
+
+### Review Lifecycle & Criticism Severity
+Every DAG step undergoes a two-phase review:
+1. **Pre-Execution Review:** Validates resolved input arguments against required fields, checks for Human-In-The-Loop (HITL) approval requirements, and flags side-effecting procedures that lack compensating procedures.
+2. **Post-Execution Review:** Inspects procedure output against required schema keys, evaluates postconditions defined in `HoareTriple` contracts, and computes a step score ($[0.0, 1.0]$).
+
+### Criticism Severity Levels
+- `LOW`: Minor recommendations or informational observations.
+- `MEDIUM`: Potential non-critical risks (e.g., side-effecting step without a rollback procedure).
+- `HIGH`: Missing required arguments or unexpected output structures.
+- `CRITICAL`: Unapproved execution of HITL-mandated procedures or severe contract violations.
+
+### DAG Execution Assessment
+Upon execution completion, `ExecutorEngine` aggregates step reviews into a `DAGExecutionAssessment` object containing:
+- `passed_steps` / `total_steps` ratio.
+- `overall_score` (mean step score across all steps).
+- List of `critical_issues` gathered across all step criticisms.
+- Human-readable summary for audit trails.
 
 ---
 
@@ -189,6 +215,7 @@ PIF is developed as an open-source project to establish an industry standard for
 |  - Basic Hoare Logic Verification Engine (wp calculus)                  |
 |  - MCP Stdio/SSE Adapters & Schema Validators                           |
 |  - Basic Router & Planner-Executor Architectures                        |
+|  - Structured Step Reviews, Criticism & Assessment Engine               |
 +-------------------------------------------------------------------------+
                                     |
                                     v
@@ -208,10 +235,18 @@ PIF is developed as an open-source project to establish an industry standard for
 ```
 .
 ├── README.md                 # Framework overview and documentation
+├── pif/                      # Core Python Implementation Package
+│   ├── executor.py           # DAG Executor Engine with Rollback & Review integration
+│   ├── metrics.py            # PIVS Health Evaluation Metrics
+│   ├── models.py             # Pydantic Data Models & Tool Contracts
+│   ├── review.py             # Structured Reviews, Criticism & Assessment Engine
+│   ├── router.py             # Fast O(1) Context Pruning Tool Router
+│   ├── schema.py             # Schema parsing and compilation utilities
+│   └── verification.py       # Formal Hoare Logic Verification Engine
 ├── schemas/                  # Formal JSON Schema specifications
 │   ├── tool_contract.json    # JSON Schema contract for MCP tool definitions
 │   └── meta_procedure.json   # JSON Schema contract for synthesized DAG workflows
-└── extracted_pdf_text.txt    # Theoretical reference background
+└── tests/                    # Unit & Integration Test Suite
 ```
 
 ---
