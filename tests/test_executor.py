@@ -77,3 +77,39 @@ def test_executor_dag_and_rollback():
     assert "Execution failed at Step 2" in str(exc_info.value)
     # Rollback should have set backed_up back to False
     assert db_state["backed_up"] is False
+
+
+def test_executor_with_structured_reviews():
+    def dummy_handler(args):
+        return {"status": "ok"}
+
+    tool = ToolContract(
+        name="simple_tool",
+        description="A safe tool",
+        is_side_effecting=False,
+        inputSchema={"type": "object", "properties": {"param": {"type": "string"}}, "required": ["param"]},
+        outputSchema={"type": "object", "properties": {"status": {"type": "string"}}, "required": ["status"]}
+    )
+
+    registry = {"simple_tool": tool}
+    handlers = {"simple_tool": dummy_handler}
+
+    executor = ExecutorEngine(registry, handlers)
+
+    dag = MetaProcedureDAG(
+        goal_specification="Run simple tool",
+        steps=[
+            DAGStep(
+                step_id=1,
+                procedure_name="simple_tool",
+                arguments_mapping={"param": "hello"},
+                dependencies=[]
+            )
+        ]
+    )
+
+    res = executor.execute_dag(dag)
+    assert res["status"] == "SUCCESS"
+    assert "assessment" in res
+    assert res["assessment"].overall_score == 1.0
+    assert res["assessment"].passed_steps == 1
