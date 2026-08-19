@@ -15,14 +15,18 @@ def load_schema(schema_name: str) -> Dict[str, Any]:
 TOOL_CONTRACT_SCHEMA = load_schema("tool_contract.json")
 META_PROCEDURE_SCHEMA = load_schema("meta_procedure.json")
 
+# Pre-compile validators for static framework schemas to avoid re-parsing overhead
+_TOOL_CONTRACT_VALIDATOR = jsonschema.validators.validator_for(TOOL_CONTRACT_SCHEMA)(TOOL_CONTRACT_SCHEMA)
+_META_PROCEDURE_VALIDATOR = jsonschema.validators.validator_for(META_PROCEDURE_SCHEMA)(META_PROCEDURE_SCHEMA)
+
 def validate_tool_contract(tool_dict: Dict[str, Any]) -> None:
     """
     Validates a tool contract dictionary against schemas/tool_contract.json
     """
-    jsonschema.validate(instance=tool_dict, schema=TOOL_CONTRACT_SCHEMA)
+    _TOOL_CONTRACT_VALIDATOR.validate(instance=tool_dict)
 
 def validate_meta_procedure(meta_dict: Dict[str, Any]) -> None:
     """
     Validates a synthesized meta procedure DAG dictionary against schemas/meta_procedure.json
     """
-    jsonschema.validate(instance=meta_dict, schema=META_PROCEDURE_SCHEMA)
+    _META_PROCEDURE_VALIDATOR.validate(instance=meta_dict)
