@@ -1,6 +1,7 @@
 import json
+import re
 from functools import lru_cache
-from typing import Dict, Any, Callable, List, Optional
+from typing import Dict, Any, Callable, List, Optional, Union
 import jsonschema
 from pif.models import ToolContract, MetaProcedureDAG, DAGStep, StepReview, CriticismSeverity, DAGExecutionAssessment
 from pif.review import ReviewEngine
@@ -29,6 +30,56 @@ def get_compiled_validator(schema: Dict[str, Any]) -> jsonschema.protocols.Valid
     # Canonicalize schema dict to string for LRU caching
     schema_str = json.dumps(schema, sort_keys=True)
     return _get_validator_for_schema_str(schema_str)
+
+def resolve_value_reference(val: Any, step_outputs: Dict[int, Dict[str, Any]]) -> Any:
+    """
+    Recursively resolves $steps[step_id] references with optional dot-notation path traversal.
+    Supports references like:
+    - $steps[1]
+    - $steps[1].field
+    - $steps[1].output.field
+    - $steps[1].nested.deep.field
+    """
+    if isinstance(val, str) and val.startswith("$steps["):
+        match = re.match(r"^\$steps\[(\d+)\](?:\.(.+))?$", val)
+        if match:
+            step_id = int(match.group(1))
+            path_str = match.group(2)
+
+            if step_id not in step_outputs:
+                raise ExecutionError(f"Referenced step outputs for Step {step_id} not found.")
+
+            curr = step_outputs[step_id]
+            if not path_str:
+                return curr
+
+            parts = path_str.split(".")
+            for idx, part in enumerate(parts):
+                if isinstance(curr, dict):
+                    if part in curr:
+                        curr = curr[part]
+                    elif idx == 0 and part == "output":
+                        # Bypass optional .output. segment if output isn't a direct key in step output
+                        continue
+                    else:
+                        raise ExecutionError(f"Cannot resolve field '{part}' in step output reference '{val}'")
+                elif isinstance(curr, list) and part.isdigit():
+                    list_idx = int(part)
+                    if 0 <= list_idx < len(curr):
+                        curr = curr[list_idx]
+                    else:
+                        raise ExecutionError(f"Index {list_idx} out of range in step reference '{val}'")
+                else:
+                    raise ExecutionError(f"Cannot traverse path segment '{part}' on non-container type in '{val}'")
+
+            return curr
+
+    elif isinstance(val, dict):
+        return {k: resolve_value_reference(v, step_outputs) for k, v in val.items()}
+    elif isinstance(val, list):
+        return [resolve_value_reference(item, step_outputs) for item in val]
+
+    return val
 
 class ExecutorEngine:
     """
@@ -99,18 +150,8 @@ class ExecutorEngine:
 
         for step in dag.steps:
             try:
-                # Resolve argument references, e.g. $steps[1].output.field
-                resolved_args = {}
-                for k, v in step.arguments_mapping.items():
-                    if isinstance(v, str) and v.startswith("$steps["):
-                        # Parse $steps[step_id].output.field
-                        parts = v.split(".")
-                        step_id_part = parts[0].replace("$steps[", "").replace("]", "")
-                        dep_step_id = int(step_id_part)
-                        field_name = parts[-1]
-                        resolved_args[k] = step_outputs[dep_step_id][field_name]
-                    else:
-                        resolved_args[k] = v
+                # Deep/recursive argument resolution
+                resolved_args = resolve_value_reference(step.arguments_mapping, step_outputs)
 
                 is_hitl_approved = step.step_id in hitl_approved_steps
                 tool = self.tools_registry.get(step.procedure_name)
@@ -162,6 +203,53 @@ class ExecutorEngine:
             "step_outputs": step_outputs,
             "assessment": assessment
         }
+
+    def execute_react_loop(
+        self,
+        agent_decide_fn: Callable[[List[Dict[str, Any]], Dict[str, Any]], Dict[str, Any]],
+        initial_context: Optional[Dict[str, Any]] = None,
+        max_iterations: Optional[int] = None,
+        hitl_approved: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Executes an iterative ReAct reasoning/action loop with strict MAX_ITERATIONS circuit breaker.
+        agent_decide_fn receives (history, context) and returns decision dictionary:
+        - {"type": "action", "tool_name": "...", "args": {...}}
+        - {"type": "finish", "result": ...}
+        """
+        limit = max_iterations if max_iterations is not None else self.MAX_ITERATIONS
+        context = initial_context or {}
+        history: List[Dict[str, Any]] = []
+
+        iteration = 0
+        while iteration < limit:
+            iteration += 1
+            decision = agent_decide_fn(history, context)
+
+            d_type = decision.get("type")
+            if d_type == "finish":
+                return {
+                    "status": "SUCCESS",
+                    "iterations": iteration,
+                    "result": decision.get("result"),
+                    "history": history
+                }
+            elif d_type == "action":
+                tool_name = decision.get("tool_name")
+                args = decision.get("args", {})
+                if not tool_name:
+                    raise ExecutionError(f"Iteration {iteration}: Decision missing 'tool_name'")
+
+                obs = self.execute_tool(tool_name, args, hitl_approved=hitl_approved)
+                history.append({
+                    "iteration": iteration,
+                    "action": decision,
+                    "observation": obs
+                })
+            else:
+                raise ExecutionError(f"Iteration {iteration}: Unknown decision type '{d_type}'")
+
+        raise ExecutionError(f"ReAct loop exceeded maximum allowed iterations limit ({limit}). Circuit breaker triggered.")
 
     def _rollback(self, completed_steps: List[DAGStep]) -> List[str]:
         rollback_logs = []

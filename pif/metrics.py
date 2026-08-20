@@ -1,4 +1,4 @@
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from pif.models import ToolContract
 
 class PIVSEvaluator:
@@ -66,4 +66,40 @@ class PIVSEvaluator:
             "schema_rigor_score": round(r_score, 2),
             "success_rate": round(s_rate, 2),
             "risk_factor": round(risk, 2)
+        }
+
+    def evaluate_registry(
+        self,
+        registry: Dict[str, ToolContract],
+        historical_success_rates: Optional[Dict[str, float]] = None
+    ) -> Dict[str, Any]:
+        """
+        Evaluates an entire Tool Registry and provides aggregated health metrics and risk distributions.
+        """
+        rates = historical_success_rates or {}
+        evaluations: Dict[str, Dict[str, Any]] = {}
+        total_pivs = 0.0
+        side_effecting_count = 0
+        hitl_count = 0
+
+        for name, tool in registry.items():
+            success_rate = rates.get(name, 1.0)
+            eval_res = self.evaluate_tool(tool, historical_success_rate=success_rate)
+            evaluations[name] = eval_res
+            total_pivs += eval_res["pivs_score"]
+
+            if tool.is_side_effecting:
+                side_effecting_count += 1
+            if tool.requires_hitl_approval:
+                hitl_count += 1
+
+        count = len(registry)
+        avg_pivs = round(total_pivs / count, 4) if count > 0 else 0.0
+
+        return {
+            "total_tools": count,
+            "average_pivs_score": avg_pivs,
+            "side_effecting_tools": side_effecting_count,
+            "hitl_protected_tools": hitl_count,
+            "tool_evaluations": evaluations
         }
