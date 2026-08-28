@@ -1,24 +1,34 @@
-from typing import List, Dict, Any, Set
+from typing import List, Dict, Any, Set, Optional
 from pif.models import ToolContract
 
 class ToolRouter:
     """
     Fast O(1) Tool Router and Context Pruning Engine.
-    Filters candidate tools based on user intent keywords and categories to prevent quadratic context window bloat I_total.
+    Filters candidate tools based on user intent keywords, category, and minimum score threshold
+    to prevent quadratic context window bloat I_total.
     """
 
     def __init__(self, registry: Dict[str, ToolContract]):
         self.registry = registry
 
-    def route_and_filter(self, user_intent: str, top_k: int = 5) -> List[ToolContract]:
+    def route_and_filter(
+        self,
+        user_intent: str,
+        top_k: int = 5,
+        category: Optional[str] = None,
+        min_score: Optional[int] = None
+    ) -> List[ToolContract]:
         """
-        Evaluates user intent and returns top_k candidate ToolContracts.
-        Prunes unnecessary tool schemas from the system context.
+        Evaluates user intent and returns candidate ToolContracts matching query, optional category,
+        and optional score threshold.
         """
         intent_tokens = set(user_intent.lower().split())
         scored_tools = []
 
         for tool in self.registry.values():
+            if category and tool.category.lower() != category.lower():
+                continue
+
             score = 0
             # Name match
             tool_name_tokens = set(tool.name.lower().replace("_", " ").split())
@@ -34,10 +44,13 @@ class ToolRouter:
 
             scored_tools.append((score, tool))
 
+        # Filter by min_score if specified
+        if min_score is not None:
+            scored_tools = [st for st in scored_tools if st[0] >= min_score]
+
         # Sort descending by score
         scored_tools.sort(key=lambda x: x[0], reverse=True)
 
-        # If score is 0, still return up to top_k to avoid empty set
         return [tool for score, tool in scored_tools[:top_k]]
 
     @staticmethod
