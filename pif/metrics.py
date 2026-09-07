@@ -1,0 +1,105 @@
+from typing import Dict, Any, Optional
+from pif.models import ToolContract
+
+class PIVSEvaluator:
+    """
+    Computes Procedure Intelligence Viability Score (PIVS) based on:
+    PIVS = w1 * Clarity + w2 * SchemaRigor + w3 * SuccessRate - w4 * RiskFactor
+    """
+
+    def __init__(
+        self,
+        w_clarity: float = 0.25,
+        w_schema: float = 0.35,
+        w_success: float = 0.30,
+        w_risk: float = 0.10
+    ):
+        self.w_clarity = w_clarity
+        self.w_schema = w_schema
+        self.w_success = w_success
+        self.w_risk = w_risk
+
+    def evaluate_tool(self, tool: ToolContract, historical_success_rate: float = 1.0) -> Dict[str, Any]:
+        """
+        Evaluates PIVS score [0.0, 1.0] for a given ToolContract.
+        """
+        # 1. Description Clarity Score
+        desc_words = tool.description.strip().split()
+        c_score = min(len(desc_words) / 10.0, 1.0) # Normalized clarity up to 10 words
+
+        # 2. Schema Rigor Score
+        r_score = 0.0
+        in_props = tool.inputSchema.get("properties", {})
+        in_req = tool.inputSchema.get("required", [])
+        out_props = tool.outputSchema.get("properties", {})
+
+        if in_props:
+            r_score += 0.4
+        if in_req:
+            r_score += 0.3
+        if out_props:
+            r_score += 0.3
+
+        # 3. Success Rate Score
+        s_rate = max(0.0, min(historical_success_rate, 1.0))
+
+        # 4. Risk Factor
+        risk = 0.0
+        if tool.is_side_effecting:
+            risk += 0.5
+        if tool.requires_hitl_approval:
+            # Having HITL mitigates raw risk
+            risk -= 0.2
+
+        pivs = (
+            self.w_clarity * c_score +
+            self.w_schema * r_score +
+            self.w_success * s_rate -
+            self.w_risk * risk
+        )
+
+        pivs_normalized = max(0.0, min(pivs, 1.0))
+
+        return {
+            "pivs_score": round(pivs_normalized, 4),
+            "clarity_score": round(c_score, 2),
+            "schema_rigor_score": round(r_score, 2),
+            "success_rate": round(s_rate, 2),
+            "risk_factor": round(risk, 2)
+        }
+
+    def evaluate_registry(
+        self,
+        registry: Dict[str, ToolContract],
+        historical_success_rates: Optional[Dict[str, float]] = None
+    ) -> Dict[str, Any]:
+        """
+        Evaluates an entire Tool Registry and provides aggregated health metrics and risk distributions.
+        """
+        rates = historical_success_rates or {}
+        evaluations: Dict[str, Dict[str, Any]] = {}
+        total_pivs = 0.0
+        side_effecting_count = 0
+        hitl_count = 0
+
+        for name, tool in registry.items():
+            success_rate = rates.get(name, 1.0)
+            eval_res = self.evaluate_tool(tool, historical_success_rate=success_rate)
+            evaluations[name] = eval_res
+            total_pivs += eval_res["pivs_score"]
+
+            if tool.is_side_effecting:
+                side_effecting_count += 1
+            if tool.requires_hitl_approval:
+                hitl_count += 1
+
+        count = len(registry)
+        avg_pivs = round(total_pivs / count, 4) if count > 0 else 0.0
+
+        return {
+            "total_tools": count,
+            "average_pivs_score": avg_pivs,
+            "side_effecting_tools": side_effecting_count,
+            "hitl_protected_tools": hitl_count,
+            "tool_evaluations": evaluations
+        }
